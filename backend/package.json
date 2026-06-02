@@ -1,0 +1,12 @@
+{
+    "name": "blockchain-voting-backend",
+    "version": "1.0.0",
+    "description": "Blockchain student voting system",
+    "main": "blockchain/block.js",
+    "scripts": {
+        "tests": "node test/blockchain.test.js"
+    },
+    "dependencies": {
+        "crypto": "^1.0.1"
+    }
+}
