@@ -95,6 +95,52 @@ class P2PServer {
                 socket.send(message);
             }
         });
-        console.log(`Broadcasted block ${block.index} to ${this.sockets.length} peers `);
+        console.log(`Broadcasted block ${block.index} to ${this.sockets.length} peers`);
+    }
+
+    //Send current bloackchain to specific socket
+    sendChain(socket) {
+        const message = JSON.stringify({
+            type: 'CHAIN',
+            chain: this.blockchain.chain,
+            nodeId: this.nodeId
+        });
+        socket.send(message);
+    }
+
+    //Handle incoming chain from peer
+    handleChainMessage(chain) {
+        this.blockchain.replaceChain(chain);
+    }
+
+    //Handle incoming vote
+    handleVoteMesaage(vote) {
+        console.log("New vote received from peer network");
+        this.blockchain.addVote(vote);
+    }
+
+    //Handle incoming block
+    handleBlockMessage(block) {
+        console.log(`New block ${block.index} received from peer`);
+
+        //Verify block is signed by valid authority
+        const expectedAuthority = this.consensus.getNextAuthority();
+        if (expectedAuthority && this.consensus.verifyBlockAuthority(block, expectedAuthority.address)) {
+            this.blockchain.chain.push(block);
+            console.log(`Block ${block.index} received from peer`);
+
+            //Verify block is signed by valid authority
+            const expectedAuthority = this.consensus.getNextAuthority();
+            if (expectedAuthority && this.consensus.verifyBlockAuthority(block, expectedAuthority.address)) {
+                this.blockchain.chaim.push(block);
+                console.log(`Block ${block.index} received from peer`);
+
+                //Verify block is signed by valid authority
+                const expectedAuthority = this.consensus.getNextAuthority();
+                if (expectedAuthority && this.consensus.verifyBlockAuthority(block, expectedAuthority.address)) 
+                    this.blockchain.chain.push(block);
+                console.log(`Block &{block.index} rejected - invalid authority signature`;)
+            }
+        }
     }
 }
