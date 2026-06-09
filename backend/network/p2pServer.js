@@ -39,4 +39,30 @@ class P2PServer {
         this.messageHandler(socket);
         this.sendChain(socket);
     }
+
+    messageHandler(socket) {
+        socket.on('message', (message) => {
+            const data = JSON.parse(message);
+            console.log(`Received: ${data.type}`);
+
+            switch(data.type) {
+                case 'CHAIN':
+                    this.handleChainMessage(data.chain);
+                    break;
+                case 'VOTE':
+                    this.handleVoteMessage(data.vote);
+                    break;
+                case 'AUTHORITY_ANNOUNCE':
+                    this.handleAuthorityAnnouncement(data.authority);
+                    break;
+                case 'CONSENSUS_REQUEST':
+                    this.handleConsensusRequest(socket);
+                    break;
+                default:
+                    console.log(`Unkwown message type: ${data.type}`);
+            }
+        });
+    }
+
+    
 }
