@@ -64,5 +64,20 @@ class P2PServer {
         });
     }
 
-    
+    //Broadcast new vote all peers
+    broadcastVote(vote) {
+        const message = JSON.stringify({
+            type: 'VOTE',
+            vote: vote,
+            nodeId: this.nodeId,
+            timestamp: Date.now()
+        });
+
+        this.sockets.forEach(socket => {
+            if (socket.readyState === WebSocket.OPEN) {
+                socket.send(message);
+            }
+        });
+        console.log(`Broadcast vote to ${this.sockets.length} peers`);
+    }
 }
