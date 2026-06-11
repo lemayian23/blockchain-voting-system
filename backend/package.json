@@ -7,9 +7,10 @@
     "test": "node test/blockchain.test.js",
     "test-crypto": "node test/crypto.test.js",
     "test-network": "node test/network.test.js",
+    "test-smartcontract": "node test/smartcontract.test.js",
     "start": "node server.js"
   },
   "dependencies": {
-    "ws": "^8.14.2"
+    "ws": "^8.21.0"
   }
 }
