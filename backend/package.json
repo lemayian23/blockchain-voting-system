@@ -5,9 +5,11 @@
   "main": "blockchain/block.js",
   "scripts": {
     "test": "node test/blockchain.test.js",
+    "test-crypto": "node test/crypto.test.js",
+    "test-network": "node test/network.test.js",
     "start": "node server.js"
   },
   "dependencies": {
-    "crypto": "^1.0.1"
+    "ws": "^8.14.2"
   }
 }
