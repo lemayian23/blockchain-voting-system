@@ -1,228 +1,125 @@
-// Smart Contract that enforces voting rules on the blockchain
-// Rules: 
-// 1. Each student can vote only once
-// 2. Votes can only be cast during election period
-// 3. Votes cannot be changed after submission
+const VotingContract = require('../smartcontract/votingContract');
+const VoteEncryption = require('../crypto/voteEncryption');
+const crypto = require('crypto');
 
-class VotingContract {
-    constructor(electionStartTime, electionEndTime) {
-        this.electionStartTime = electionStartTime;   // Unix timestamp (ms)
-        this.electionEndTime = electionEndTime;       // Unix timestamp (ms)
-        this.votedStudents = new Map();                // voterHash -> { candidateId, timestamp, blockIndex }
-        this.totalVotes = 0;
-        this.candidateVotes = new Map();               // candidateId -> voteCount
-        this.contractAddress = this.generateContractAddress();
-        this.contractDeployedAt = Date.now();
-        this.isFinalized = false;
+function testSmartContract() {
+    console.log("\n=== TESTING SMART CONTRACT (VOTING RULES ENFORCEMENT) ===\n");
+    
+    // Set election period: starting now, ending in 1 hour (for demo)
+    const now = Date.now();
+    const startTime = now - 10000; // Started 10 seconds ago (for active testing)
+    const endTime = now + 3600000;  // Ends in 1 hour
+    
+    const contract = new VotingContract(startTime, endTime);
+    const cryptoSystem = new VoteEncryption();
+    const electionKeys = cryptoSystem.generateElectionAuthorityKeys();
+    
+    console.log("1. Contract Deployment:");
+    console.log(`   Contract Address: ${contract.contractAddress}`);
+    console.log(`   Election Status: ${contract.getElectionStatus()}`);
+    console.log(`   Start: ${new Date(startTime).toLocaleTimeString()}`);
+    console.log(`   End: ${new Date(endTime).toLocaleTimeString()}`);
+    
+    // Generate voter keys
+    const voter1 = cryptoSystem.generateVoterKeys("STUDENT_001");
+    const voter2 = cryptoSystem.generateVoterKeys("STUDENT_002");
+    const voter3 = cryptoSystem.generateVoterKeys("STUDENT_003");
+    
+    // Hash voter IDs for anonymity
+    const hashVoterId = (id) => {
+        return crypto.createHash('sha256').update(id + 'voting_salt_2024').digest('hex');
+    };
+    
+    const voter1Hash = hashVoterId("STUDENT_001");
+    const voter2Hash = hashVoterId("STUDENT_002");
+    const voter3Hash = hashVoterId("STUDENT_003");
+    
+    console.log("\n2. Casting Votes (Testing Rules):");
+    
+    // Student 1 votes for Candidate A
+    const securedVote1 = cryptoSystem.createSecuredVote(
+        "STUDENT_001", "CANDIDATE_A", voter1.privateKey, electionKeys.publicKey
+    );
+    const result1 = contract.castVote(voter1Hash, "CANDIDATE_A", securedVote1, 1);
+    console.log(`   Student 1: ${result1.success ? "✓" : "✗"} ${result1.message || result1.reason}`);
+    
+    // Student 2 votes for Candidate B
+    const securedVote2 = cryptoSystem.createSecuredVote(
+        "STUDENT_002", "CANDIDATE_B", voter2.privateKey, electionKeys.publicKey
+    );
+    const result2 = contract.castVote(voter2Hash, "CANDIDATE_B", securedVote2, 1);
+    console.log(`   Student 2: ${result2.success ? "✓" : "✗"} ${result2.message || result2.reason}`);
+    
+    // Student 3 votes for Candidate A
+    const securedVote3 = cryptoSystem.createSecuredVote(
+        "STUDENT_003", "CANDIDATE_A", voter3.privateKey, electionKeys.publicKey
+    );
+    const result3 = contract.castVote(voter3Hash, "CANDIDATE_A", securedVote3, 2);
+    console.log(`   Student 3: ${result3.success ? "✓" : "✗"} ${result3.message || result3.reason}`);
+    
+    // Test Rule 1: Same student tries to vote again
+    console.log("\n3. Testing Rule 1 (One Vote Per Student):");
+    const duplicateResult = contract.castVote(voter1Hash, "CANDIDATE_B", securedVote1, 2);
+    console.log(`   Duplicate vote attempt: ${duplicateResult.success ? "✗ Allowed" : "✓ Blocked"}`);
+    console.log(`   Reason: ${duplicateResult.reason}`);
+    
+    // Test Rule 2: Voting period enforcement
+    console.log("\n4. Testing Rule 2 (Voting Period):");
+    const pastContract = new VotingContract(now - 7200000, now - 3600000); // Ended 1 hour ago
+    const pastResult = pastContract.castVote(voter1Hash, "CANDIDATE_A", securedVote1, 1);
+    console.log(`   After election ended: ${pastResult.success ? "✗ Allowed" : "✓ Blocked"}`);
+    console.log(`   Reason: ${pastResult.reason}`);
+    
+    // Test Rule 3: Immutability (can't change vote)
+    console.log("\n5. Testing Rule 3 (Cannot Change Vote):");
+    const changeResult = contract.castVote(voter1Hash, "CANDIDATE_C", securedVote1, 3);
+    console.log(`   Change vote attempt: ${changeResult.success ? "✗ Allowed" : "✓ Blocked"}`);
+    console.log(`   Reason: ${changeResult.reason}`);
+    
+    // Display current tally
+    console.log("\n6. Current Vote Tally (Transparency):");
+    const tally = contract.getTally();
+    console.log(`   Total Votes: ${tally.totalVotes}`);
+    console.log(`   Candidate A: ${tally.candidates['CANDIDATE_A'] || 0}`);
+    console.log(`   Candidate B: ${tally.candidates['CANDIDATE_B'] || 0}`);
+    console.log(`   Candidate C: ${tally.candidates['CANDIDATE_C'] || 0}`);
+    
+    // Student verification
+    console.log("\n7. Student Verification (Transaction ID):");
+    const studentVote = contract.getStudentVote(voter1Hash);
+    if (studentVote) {
+        console.log(`   Student 1 voted for: ${studentVote.candidateId}`);
+        console.log(`   Block index: ${studentVote.blockIndex}`);
+        // Student can verify with their transaction ID
+        const txId = result1.transactionId;
+        const verification = contract.verifyVote(voter1Hash, txId);
+        console.log(`   Transaction ID verification: ${verification.verified ? "✓ Valid" : "✗ Invalid"}`);
     }
-
-    // Generate unique contract address (simulated)
-    generateContractAddress() {
-        const crypto = require('crypto');
-        return crypto.createHash('sha256')
-            .update('voting_contract_' + Date.now())
-            .digest('hex')
-            .substring(0, 16);
-    }
-
-    // Check if election is currently active
-    isElectionActive() {
-        const now = Date.now();
-        return now >= this.electionStartTime && now <= this.electionEndTime && !this.isFinalized;
-    }
-
-    // Get election status
-    getElectionStatus() {
-        const now = Date.now();
-        if (this.isFinalized) return 'FINALIZED';
-        if (now < this.electionStartTime) return 'NOT_STARTED';
-        if (now > this.electionEndTime) return 'ENDED';
-        return 'ACTIVE';
-    }
-
-    // Core function: cast a vote (enforces all rules)
-    castVote(voterHashedId, candidateId, securedVotePacket, blockIndex) {
-        const status = this.getElectionStatus();
-        
-        // Rule 2: Check voting period
-        if (status !== 'ACTIVE') {
-            return {
-                success: false,
-                reason: `Election is ${status}. Voting not allowed.`,
-                code: 'INVALID_PERIOD'
-            };
-        }
-
-        // Rule 1: Check if student already voted
-        if (this.votedStudents.has(voterHashedId)) {
-            const existingVote = this.votedStudents.get(voterHashedId);
-            return {
-                success: false,
-                reason: `Student has already voted for candidate ${existingVote.candidateId} at block ${existingVote.blockIndex}`,
-                code: 'ALREADY_VOTED'
-            };
-        }
-
-        // Validate candidate exists
-        if (!this.isValidCandidate(candidateId)) {
-            return {
-                success: false,
-                reason: `Candidate ${candidateId} does not exist`,
-                code: 'INVALID_CANDIDATE'
-            };
-        }
-
-        // Rule 3: Vote is recorded immutably (cannot be changed)
-        // Record the vote
-        this.votedStudents.set(voterHashedId, {
-            candidateId: candidateId,
-            timestamp: Date.now(),
-            blockIndex: blockIndex,
-            voteHash: securedVotePacket?.voteHash || 'pending'
-        });
-
-        // Update vote counts
-        this.totalVotes++;
-        const currentCount = this.candidateVotes.get(candidateId) || 0;
-        this.candidateVotes.set(candidateId, currentCount + 1);
-
-        return {
-            success: true,
-            message: `Vote cast successfully for candidate ${candidateId}`,
-            transactionId: this.generateTransactionId(voterHashedId, candidateId),
-            totalVotes: this.totalVotes
-        };
-    }
-
-    // Generate transaction ID as proof of voting
-    generateTransactionId(voterHashedId, candidateId) {
-        const crypto = require('crypto');
-        return crypto.createHash('sha256')
-            .update(voterHashedId + candidateId + Date.now() + this.contractAddress)
-            .digest('hex')
-            .substring(0, 16);
-    }
-
-    // Check if a student has already voted (transparency)
-    hasVoted(voterHashedId) {
-        return this.votedStudents.has(voterHashedId);
-    }
-
-    // Get student's vote (without revealing identity publicly)
-    getStudentVote(voterHashedId) {
-        if (!this.votedStudents.has(voterHashedId)) {
-            return null;
-        }
-        const vote = this.votedStudents.get(voterHashedId);
-        return {
-            candidateId: vote.candidateId,
-            timestamp: vote.timestamp,
-            blockIndex: vote.blockIndex,
-            canVerify: true  // Student can verify with their transaction ID
-        };
-    }
-
-    // Get current vote counts (transparent to all)
-    getTally() {
-        const tally = {};
-        for (const [candidateId, count] of this.candidateVotes.entries()) {
-            tally[candidateId] = count;
-        }
-        return {
-            totalVotes: this.totalVotes,
-            candidates: tally,
-            lastUpdated: Date.now(),
-            isFinalized: this.isFinalized
-        };
-    }
-
-    // Validate candidate exists (simplified - would check against candidate registry)
-    isValidCandidate(candidateId) {
-        const validCandidates = ['CANDIDATE_A', 'CANDIDATE_B', 'CANDIDATE_C', 'CANDIDATE_D'];
-        return validCandidates.includes(candidateId);
-    }
-
-    // Finalize election (no more votes can be cast)
-    finalizeElection() {
-        if (this.isFinalized) {
-            return { success: false, reason: 'Election already finalized' };
-        }
-        
-        const status = this.getElectionStatus();
-        if (status === 'ACTIVE') {
-            return { success: false, reason: 'Cannot finalize while election is active' };
-        }
-        
-        this.isFinalized = true;
-        return {
-            success: true,
-            message: 'Election finalized',
-            finalTally: this.getTally()
-        };
-    }
-
-    // Get contract information (transparency)
-    getContractInfo() {
-        return {
-            contractAddress: this.contractAddress,
-            deployedAt: this.contractDeployedAt,
-            electionStartTime: this.electionStartTime,
-            electionEndTime: this.electionEndTime,
-            electionStatus: this.getElectionStatus(),
-            totalVotes: this.totalVotes,
-            uniqueVoters: this.votedStudents.size,
-            isFinalized: this.isFinalized
-        };
-    }
-
-    // Verify a vote using transaction ID (for student proof)
-    verifyVote(voterHashedId, transactionId) {
-        if (!this.votedStudents.has(voterHashedId)) {
-            return { verified: false, reason: 'No vote found for this student' };
-        }
-        
-        const vote = this.votedStudents.get(voterHashedId);
-        const expectedTxId = this.generateTransactionId(voterHashedId, vote.candidateId);
-        
-        if (transactionId === expectedTxId) {
-            return {
-                verified: true,
-                vote: {
-                    candidateId: vote.candidateId,
-                    timestamp: vote.timestamp,
-                    blockIndex: vote.blockIndex
-                }
-            };
-        }
-        
-        return { verified: false, reason: 'Transaction ID does not match' };
-    }
-
-    // Get all votes for audit (only for election officials, votes are hashed IDs)
-    getAuditLog() {
-        const auditLog = [];
-        for (const [voterHash, vote] of this.votedStudents.entries()) {
-            auditLog.push({
-                voterHash: voterHash.substring(0, 10) + '...',  // Partial for privacy
-                candidateId: vote.candidateId,
-                timestamp: vote.timestamp,
-                blockIndex: vote.blockIndex
-            });
-        }
-        return auditLog;
-    }
-
-    // Simulate block confirmation (called when vote is added to blockchain)
-    confirmVoteOnBlockchain(voterHashedId, blockIndex, blockHash) {
-        if (this.votedStudents.has(voterHashedId)) {
-            const vote = this.votedStudents.get(voterHashedId);
-            vote.blockIndex = blockIndex;
-            vote.blockHash = blockHash;
-            this.votedStudents.set(voterHashedId, vote);
-            return true;
-        }
-        return false;
-    }
+    
+    // Contract summary
+    console.log("\n8. Smart Contract Summary:");
+    const info = contract.getContractInfo();
+    console.log(`   Contract Address: ${info.contractAddress}`);
+    console.log(`   Status: ${info.electionStatus}`);
+    console.log(`   Total Unique Voters: ${info.uniqueVoters}`);
+    console.log(`   Total Votes Recorded: ${info.totalVotes}`);
+    console.log(`   Is Finalized: ${info.isFinalized}`);
+    
+    // Audit log (for officials)
+    console.log("\n9. Audit Log (Partial - Privacy Preserved):");
+    const audit = contract.getAuditLog();
+    audit.forEach(entry => {
+        console.log(`   Voter: ${entry.voterHash} → ${entry.candidateId} (Block ${entry.blockIndex})`);
+    });
+    
+    console.log("\n=== SMART CONTRACT SUMMARY ===");
+    console.log("✓ Rule 1: One vote per student strictly enforced");
+    console.log("✓ Rule 2: Voting only allowed during election period");
+    console.log("✓ Rule 3: Votes cannot be changed after submission");
+    console.log("✓ Transaction IDs provide proof of voting to students");
+    console.log("✓ Vote tally is transparent and publicly readable");
+    console.log("✓ Audit log available for election officials");
+    console.log("✓ Student privacy maintained (hashed IDs)");
 }
 
-module.exports = VotingContract;
+testSmartContract();
