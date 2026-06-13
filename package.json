@@ -1,4 +1,15 @@
 {
+  "name": "blockchain-voting-backend",
+  "version": "1.0.0",
+  "description": "Blockchain student voting system",
+  "main": "blockchain/block.js",
+  "scripts": {
+    "test": "node test/blockchain.test.js",
+    "test-crypto": "node test/crypto.test.js",
+    "test-network": "node test/network.test.js",
+    "test-contract": "node test/contract.test.js",
+    "start": "node server.js"
+  },
   "dependencies": {
     "ws": "^8.21.0"
   }
