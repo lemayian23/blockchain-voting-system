@@ -2,7 +2,7 @@
   "name": "blockchain-voting-backend",
   "version": "1.0.0",
   "description": "Blockchain student voting system",
-  "main": "blockchain/block.js",
+  "main": "api/server.js",
   "scripts": {
     "start": "node api/server.js",
     "test": "node test/blockchain.test.js",
