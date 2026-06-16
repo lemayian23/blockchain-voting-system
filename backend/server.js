@@ -9,6 +9,87 @@ const Consensus = require('./network/consensus');
 const VotingContract = require('./smartcontract/votingContract');
 const VoteEncryption = require('./crypto/voteEncryption');
 
+// ... other requires
+const pool = require('../db/pool');
+const db = require('../db/queries');
+const bcrypt = require('bcrypt');
+require('dotenv').config();
+
+// Initialize election settings from DB (or create default)
+async function initElectionSettings() {
+    const settings = await db.getElectionSettings();
+    if (!settings) {
+        // Create default: now -> now+24h
+        const start = new Date();
+        const end = new Date(Date.now() + 24*60*60*1000);
+        await db.updateElectionSettings(start, end);
+    }
+}
+
+// On startup, load settings into the contract
+let contractStartTime, contractEndTime;
+
+async function loadContractFromDB() {
+    const settings = await db.getElectionSettings();
+    if (settings) {
+        contractStartTime = settings.start_time.getTime();
+        contractEndTime = settings.end_time.getTime();
+        // Re-create contract with these times
+        // We'll need to re-initialize votingContract with new times
+        // For simplicity, we'll set global variables
+        global.contractStartTime = contractStartTime;
+        global.contractEndTime = contractEndTime;
+        // Update existing contract if needed
+        if (votingContract) {
+            votingContract.electionStartTime = contractStartTime;
+            votingContract.electionEndTime = contractEndTime;
+        }
+    }
+}
+
+// Modified login handler
+async function handleLogin(req, res) {
+    let body = '';
+    req.on('data', chunk => { body += chunk; });
+    req.on('end', async () => {
+        const { studentId, password } = JSON.parse(body);
+        const student = await db.verifyStudentPassword(studentId, password);
+        if (student) {
+            const voterHash = hashVoterId(studentId);
+            const hasVoted = votingContract.hasVoted(voterHash);
+            // Also check DB flag (consistency)
+            res.writeHead(200);
+            res.end(JSON.stringify({
+                success: true,
+                student: { id: student.id, name: student.name },
+                hasVoted: hasVoted || student.has_voted,
+                electionActive: votingContract.isElectionActive()
+            }));
+        } else {
+            res.writeHead(401);
+            res.end(JSON.stringify({ success: false, error: 'Invalid credentials' }));
+        }
+    });
+}
+
+// Modified candidates endpoint
+// If GET /api/candidates, return from DB
+// We'll add a new endpoint
+
+// In handleCastVote, after successful contract vote, log to DB
+// Inside the success block:
+await db.logVoteTransaction(voterHash, candidateId, contractResult.transactionId, blockIndex);
+await db.setStudentVoted(studentId);
+
+// Admin endpoints use DB as well
+// e.g., finalize election updates DB and contract
+
+// Initialization
+initElectionSettings().then(() => {
+    loadContractFromDB();
+    // Start server...
+});
+
 // Initialize system
 const blockchain = new Blockchain(2);
 const consensus = new Consensus();
