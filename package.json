@@ -9,8 +9,12 @@
     "test-crypto": "node test/crypto.test.js",
     "test-network": "node test/network.test.js",
     "test-contract": "node test/contract.test.js"
+    "db-init": "psql -h localhost -U postgres -d voting_system -f db/schema.sql"
   },
   "dependencies": {
-    "ws": "^8.21.0"
+      "bcrypt": "^5.1.1",
+  "dotenv": "^16.4.5",
+  "pg": "^8.11.5",
+  "ws": "^8.21.0"
   }
 }
