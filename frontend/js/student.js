@@ -163,3 +163,16 @@ async function checkSession() {
     document.getElementById('loginSection').style.display = 'block';
     document.getElementById('votingSection').style.display = 'none';
 }
+
+//After successful vote, show QR code
+function showQRCode(transactionId) {
+    const qrContainer = document.getElementById('qrContainer');
+    qrContainer.innerHTML = '';  //clear
+    const qr = new QRCode(qrContainer, {
+        text: transactionId,
+        width: 150,
+        height: 150,
+    });
+    document.getElementById('qrSection').style.display = 'block';
+
+}
