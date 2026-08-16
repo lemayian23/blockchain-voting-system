@@ -1,7 +1,7 @@
 let currentStudent = null;
 let selectedCandidate = null;
 
-// Wait for DOM to load
+// Wait for DOM to load first
 document.addEventListener('DOMContentLoaded', () => {
     const loginForm = document.getElementById('loginForm');
     if (loginForm) {
